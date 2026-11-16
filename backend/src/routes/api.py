@@ -24,10 +24,10 @@ def context(u=Depends(current)):
 def arrivals(u=Depends(current),s=Depends(db)):return arrival_rows(s)
 @router.post('/arrivals')
 def create_arrival(data:ArrivalInput,u=Depends(editor),s=Depends(db)):
- r=save_arrival(s,data);audit(s,u,'录入班次 '+r.code);return dump(r)
+ r=save_arrival(s,data,actor=u.email);audit(s,u,'录入班次 '+r.code);return dump(r)
 @router.put('/arrivals/{i}')
 def edit_arrival(i:int,data:ArrivalInput,u=Depends(editor),s=Depends(db)):
- r=save_arrival(s,data,i);audit(s,u,'修订班次 '+r.code);return dump(r)
+ r=save_arrival(s,data,i,actor=u.email);audit(s,u,'修订班次 '+r.code);return dump(r)
 @router.post('/preview')
 def preview(data:PreviewInput,u=Depends(editor),s=Depends(db)):
  result=calculate(arrival_rows(s),data.report_day.isoformat(),data.station);audit(s,u,'晨报试算 '+data.report_day.isoformat());return result

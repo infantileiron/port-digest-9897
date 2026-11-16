@@ -1,7 +1,9 @@
 import random
 from datetime import datetime,timedelta
 from src.config.database import Base,engine,Session
-from src.models.entities import User,Arrival,Subscription,Receipt
+from src.models.entities import User,Arrival,Subscription,Receipt,SyncSubscription
+from src.services import sync as sync_service
+from src.services.changelog import backfill_changes
 from src.utils.security import hash_password
 from src.utils.time import now_utc,SH,next_due
 
@@ -18,5 +20,11 @@ def seed():
   for station in ('北站','南站','东港'):
    name=station+'值班晨报'
    if not s.query(Subscription).filter_by(name=name).first():s.add(Subscription(name=name,station=station,daily_at='08:30',recipient=station+'值班室',enabled=False,next_run_at=next_due('08:30',now).isoformat()))
-  s.commit();print({'users':s.query(User).count(),'arrivals':s.query(Arrival).count(),'subscriptions':s.query(Subscription).count(),'receipts':s.query(Receipt).count()})
+  for station,label in (('北站','北站值班接收端'),('南站','南站值班接收端'),('东港','东港值班接收端')):
+   name='增量·'+station+'台账'
+   if not s.query(SyncSubscription).filter_by(name=name).first():
+    s.add(SyncSubscription(name=name,station=station,receiver=label,dataset='live',enabled=True,
+     token_hash=sync_service.hash_token(sync_service.new_token()),generation=1,cursor_seq=0,bootstrapped=False,created_at=now.isoformat()))
+  s.commit();backfill_changes(s)
+  print({'users':s.query(User).count(),'arrivals':s.query(Arrival).count(),'subscriptions':s.query(Subscription).count(),'receipts':s.query(Receipt).count(),'sync_subscriptions':s.query(SyncSubscription).count()})
 if __name__=='__main__':seed()

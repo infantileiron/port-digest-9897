@@ -5,10 +5,18 @@ from fastapi.responses import JSONResponse
 from src.config.database import Base,engine
 from src.models import entities
 from src.routes.api import router
+from src.routes.sync import router as sync_router
 from src.middlewares.request import RequestId,SecurityHeaders
 @asynccontextmanager
 async def lifespan(app):
  Base.metadata.create_all(engine)
+ from src.config.migrate import ensure_additive
+ ensure_additive(engine)
+ try:
+  from src.services.changelog import backfill_changes
+  from src.config.database import Session
+  with Session() as s:backfill_changes(s)
+ except Exception:logging.exception('change-log baseline backfill failed')
  if os.getenv('SEED_DEMO')=='true':
   try:
    from scripts.seed_demo import seed
@@ -18,6 +26,7 @@ async def lifespan(app):
 app=FastAPI(title='港站晨报定时分发',lifespan=lifespan)
 app.add_middleware(RequestId);app.add_middleware(SecurityHeaders)
 app.include_router(router)
+app.include_router(sync_router)
 @app.get('/health')
 def health():
  from sqlalchemy import text
